@@ -1,0 +1,12 @@
+openai-whisper
+pyaudio
+mss
+Pillow
+ollama
+pyautogui
+pyttsx3
+pyperclip
+colorama
+numpy
+requests
+pygame
