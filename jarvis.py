@@ -53,43 +53,61 @@ def main():
         while True:
             print(f"\n{Fore.WHITE}Waiting for wake word...{Style.RESET_ALL}")
             
-            # 1. Listen for "Jarvis"
             if listener.listen_for_wake_word(silence_threshold):
-                # 2. Record command
-                command = listener.record_command(silence_threshold)
-                print(f"{Fore.YELLOW}Command received: {command}{Style.RESET_ALL}")
+                active_conversation = True
                 
-                if not command or len(command) < 2:
-                    continue
-                
-                # 3. Capture Screen
-                print(f"{Fore.BLUE}[JARVIS] Observing screen...{Style.RESET_ALL}")
-                img_bytes, _ = vision.capture_screen()
-                
-                # 4. Think
-                print(f"{Fore.MAGENTA}[JARVIS] Thinking...{Style.RESET_ALL}")
-                decision = brain.think(command, img_bytes)
-                
-                # 5. Speak (Async)
-                if decision.get('speak'):
-                    tts.speak_async(decision['speak'])
-                
-                # 6. Execute Actions
-                actions = decision.get('actions', [])
-                if actions:
-                    print(f"{Fore.GREEN}[JARVIS] Executing {len(actions)} actions...{Style.RESET_ALL}")
-                    result = executor.execute_actions(actions)
+                while active_conversation:
+                    # 2. Record command
+                    command = listener.record_command(silence_threshold)
                     
-                    # Handle recursive screenshot request
-                    if result == "SCREENSHOT_REQUESTED":
-                        print(f"{Fore.BLUE}[JARVIS] Re-evaluating screen...{Style.RESET_ALL}")
-                        img_bytes, _ = vision.capture_screen()
-                        decision = brain.think("Verify task progress and continue.", img_bytes)
-                        if decision.get('speak'):
-                            tts.speak_async(decision['speak'])
-                        executor.execute_actions(decision.get('actions', []))
-                
-                print(f"{Fore.CYAN}Ready.{Style.RESET_ALL}")
+                    if not command or len(command) < 2:
+                        # If silence for too long, exit active conversation
+                        print(f"{Fore.YELLOW}No command detected. Returning to sleep mode.{Style.RESET_ALL}")
+                        active_conversation = False
+                        break
+                    
+                    # Check for exit commands
+                    exit_commands = ["goodbye", "go to sleep", "stop listening", "that is all", "bye"]
+                    if any(ext in command.lower() for ext in exit_commands):
+                        tts.speak("Of course. I'll be here if you need me. Just say Jarvis to wake me up again.")
+                        active_conversation = False
+                        break
+
+                    # 3. Capture Screen
+                    print(f"{Fore.CYAN}[JARVIS] Observing screen...{Style.RESET_ALL}")
+                    img_bytes, img_base64 = vision.capture_screen()
+                    
+                    # 4. Think and decide
+                    print(f"{Fore.MAGENTA}[JARVIS] Thinking...{Style.RESET_ALL}")
+                    decision = brain.think(command, img_bytes)
+                    
+                    # 5. Confirm and Speak
+                    if decision.get('speak'):
+                        print(f"{Fore.YELLOW}[JARVIS] Speaking: {decision['speak']}{Style.RESET_ALL}")
+                        tts.speak(decision['speak']) # Block speaking to ensure user hears confirmation
+                    
+                    # 6. Execute Actions in a loop
+                    actions = decision.get('actions', [])
+                    retries = 0
+                    max_retries = 2
+                    
+                    while actions and retries < max_retries:
+                        print(f"{Fore.GREEN}[JARVIS] Executing {len(actions)} actions (Step {retries+1})...{Style.RESET_ALL}")
+                        result = executor.execute_actions(actions)
+                        
+                        if result == "SCREENSHOT_REQUESTED":
+                            retries += 1
+                            print(f"{Fore.BLUE}[JARVIS] Re-evaluating screen to verify...{Style.RESET_ALL}")
+                            img_bytes, _ = vision.capture_screen()
+                            decision = brain.think("Verify progress and confirm if the task is done.", img_bytes)
+                            if decision.get('speak'):
+                                tts.speak(decision['speak'])
+                            actions = decision.get('actions', [])
+                        else:
+                            break
+                    
+                    print(f"{Fore.CYAN}Ready for your next command...{Style.RESET_ALL}")
+                    # Loop repeats to record_command again immediately
                 
     except KeyboardInterrupt:
         print(f"\n{Fore.RED}JARVIS shutting down. Goodbye.{Style.RESET_ALL}")

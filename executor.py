@@ -6,7 +6,7 @@ import os
 import platform
 
 # Safety Settings
-pyautogui.FAILSAFE = True  # Move mouse to corner to abort
+pyautogui.FAILSAFE = False  # Disabled to allow JARVIS full control
 pyautogui.PAUSE = 0.3      # Small pause between actions
 
 def open_app(app_name):
@@ -15,6 +15,8 @@ def open_app(app_name):
     aliases = {
         "load pad": "notepad",
         "note pad": "notepad",
+        "chrome": "chrome",
+        "google chrome": "chrome",
         "browser": "chrome",
         "file explorer": "explorer",
         "files": "explorer",
@@ -22,13 +24,36 @@ def open_app(app_name):
         "command prompt": "cmd",
         "calculator": "calc",
         "noodle": "notepad",
+        "notebook": "notepad",
         "v-score": "code",
         "v score": "code",
         "vs code": "code",
-        "visual studio": "code"
+        "visual studio": "code",
+        "visual studio code": "code",
+        "vsc": "code",
+        "v-s-code": "code",
+        "lord book": "notepad",
+        "load book": "notepad",
+        "lord pad": "notepad",
+        "calendar": "outlookcal:",
+        "youtube": "https://www.youtube.com",
+        "google": "https://www.google.com",
+        "youve bill": "https://www.youtube.com",
+        "youve": "https://www.youtube.com",
+        "ou so": "code",
+        "o so": "code"
     }
     
-    app_to_open = aliases.get(app_name.lower(), app_name)
+    # Smart YouTube search detection
+    if "youtube" in app_name.lower() and "search" in app_name.lower():
+        query = app_name.lower().replace("youtube", "").replace("search", "").strip()
+        if query:
+            import urllib.parse
+            app_to_open = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
+        else:
+            app_to_open = "https://www.youtube.com"
+    else:
+        app_to_open = aliases.get(app_name.lower(), app_name)
     print(f"[EXECUTOR] Attempting to open: {app_to_open}")
 
     try:
@@ -46,7 +71,7 @@ def open_app(app_name):
         print(f"[ERROR] Could not open {app_to_open}: {e}")
 
 def handle_system_action(a_type, amount=None):
-    """Handle system level actions like volume and brightness."""
+    """Handle system level actions like volume and power."""
     try:
         if a_type == "VOLUME_UP":
             for _ in range(5): pyautogui.press('volumeup')
@@ -55,60 +80,82 @@ def handle_system_action(a_type, amount=None):
         elif a_type == "MUTE":
             pyautogui.press('volumemute')
         elif a_type == "MINIMIZE_ALL":
-            if platform.system() == "Windows":
-                pyautogui.hotkey('win', 'd')
-            else:
-                pyautogui.hotkey('command', 'f3') # Mac show desktop
+            pyautogui.hotkey('win', 'd') if platform.system() == "Windows" else pyautogui.hotkey('command', 'f3')
+        elif a_type == "LOCK":
+            os.system("rundll32.exe user32.dll,LockWorkStation") if platform.system() == "Windows" else None
+        elif a_type == "SLEEP":
+            os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0") if platform.system() == "Windows" else None
+        elif a_type.startswith("MEDIA_"):
+            key = a_type.split("_")[1].lower() # PLAY, NEXT, PREV
+            pyautogui.press(f'playpause' if key == 'play' else f'nexttrack' if key == 'next' else 'prevtrack')
     except Exception as e:
         print(f"[ERROR] System action {a_type} failed: {e}")
 
 def execute_actions(actions):
-    """Execute a list of action dicts."""
+    """Execute a list of action dicts with coordinate scaling and precision."""
+    pyautogui.FAILSAFE = False
+    pyautogui.PAUSE = 0.1 # Small delay for stability
+    screenshot_needed = False
+    
+    sw, sh = pyautogui.size()
+    
     for action in actions:
         try:
             a_type = action.get('type', '').upper()
             x = action.get('x')
             y = action.get('y')
             text = action.get('text')
+            app = action.get('app_name')
             key = action.get('key_name')
             amount = action.get('amount')
-            app = action.get('app_name')
             seconds = action.get('seconds', 1)
 
-            print(f"[EXECUTOR] Action: {a_type}")
+            # Scale coordinates if they are normalized (0 to 1)
+            if x is not None and x <= 1.0 and y is not None and y <= 1.0:
+                x = int(x * sw)
+                y = int(y * sh)
+            elif x is not None:
+                x = int(x)
+                y = int(y)
 
-            # New System Actions
-            if a_type in ["VOLUME_UP", "VOLUME_DOWN", "MUTE", "MINIMIZE_ALL"]:
-                handle_system_action(a_type)
-                continue
+            print(f"[EXECUTOR] Action: {a_type} at ({x}, {y})" if x is not None else f"[EXECUTOR] Action: {a_type}")
 
-            if a_type == "CLICK":
+            if a_type == "OPEN":
+                open_app(app)
+            elif a_type == "CLICK":
                 pyautogui.click(x, y)
             elif a_type == "DOUBLE_CLICK":
                 pyautogui.doubleClick(x, y)
             elif a_type == "RIGHT_CLICK":
                 pyautogui.rightClick(x, y)
-            elif a_type == "TYPE":
-                pyperclip.copy(text)
-                if platform.system() == "Darwin":
-                    pyautogui.hotkey('command', 'v')
-                else:
-                    pyautogui.hotkey('ctrl', 'v')
-            elif a_type == "KEY":
-                if '+' in key:
-                    pyautogui.hotkey(*key.split('+'))
-                else:
-                    pyautogui.press(key)
             elif a_type == "SCROLL":
                 pyautogui.scroll(amount if amount else -300)
-            elif a_type == "OPEN":
-                open_app(app)
+            elif a_type == "TYPE":
+                pyperclip.copy(text)
+                pyautogui.hotkey('ctrl', 'v')
+                time.sleep(0.2)
+                # Auto-enter for searches
+                if "search" in str(action).lower():
+                    pyautogui.press('enter')
+            elif a_type == "KEY":
+                if key and '+' in key:
+                    pyautogui.hotkey(*key.split('+'))
+                else:
+                    pyautogui.press(key if key else text)
             elif a_type == "WAIT":
                 time.sleep(seconds)
             elif a_type == "SCREENSHOT":
-                return "SCREENSHOT_REQUESTED"
+                screenshot_needed = True
+            
+            # System actions
+            if a_type in ["VOLUME_UP", "VOLUME_DOWN", "MUTE", "MINIMIZE_ALL", "LOCK", "SLEEP"] or a_type.startswith("MEDIA_"):
+                handle_system_action(a_type)
+
         except Exception as e:
             print(f"[ERROR] Action {a_type} failed: {e}")
+            
+    if screenshot_needed:
+        return "SCREENSHOT_REQUESTED"
     return True
 
 if __name__ == "__main__":

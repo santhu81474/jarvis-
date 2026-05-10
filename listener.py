@@ -118,8 +118,9 @@ def listen_for_wake_word(silence_threshold):
 
     frames = []
     chunks_per_second = int(RATE / CHUNK)
-    window_chunks = chunks_per_second * 2
-    slide_chunks = int(chunks_per_second * 0.5)
+    # 3-second window for better context
+    window_chunks = chunks_per_second * 3
+    slide_chunks = chunks_per_second * 1
 
     while True:
         try:
@@ -127,51 +128,57 @@ def listen_for_wake_word(silence_threshold):
             frames.append(data)
 
             if len(frames) >= window_chunks:
-                # Check if this window has actual speech (not just background noise)
+                # Process the window
                 window_audio = np.frombuffer(b''.join(frames), dtype=np.int16)
                 window_rms = np.sqrt(np.mean(window_audio.astype(np.float32) ** 2))
                 
-                # Only send to Whisper if RMS is above threshold (actual voice detected)
                 if window_rms > silence_threshold:
-                    print(f"\n[DEBUG] Voice detected (RMS: {window_rms:.0f} > {silence_threshold:.0f}). Processing...")
+                    # Save temporary file
                     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
                         tmp_path = tmp.name
 
-                    # Normalize audio before saving to improve transcription accuracy
-                    audio_data = np.frombuffer(b''.join(frames), dtype=np.int16).astype(np.float32)
-                    max_vol = np.max(np.abs(audio_data))
-                    if max_vol > 0:
-                        audio_data = (audio_data / max_vol) * 32767.0
-                    normalized_bytes = audio_data.astype(np.int16).tobytes()
-
                     with wave.open(tmp_path, 'wb') as wf:
                         wf.setnchannels(CHANNELS)
-                        wf.setsampwidth(p.get_sample_size(FORMAT))
+                        wf.setsampwidth(2)
                         wf.setframerate(RATE)
-                        wf.writeframes(normalized_bytes)
+                        wf.writeframes(b''.join(frames))
 
                     try:
-                        result = whisper_model.transcribe(tmp_path, fp16=False, language='en')
+                        # High-speed wake word detection
+                        result = whisper_model.transcribe(
+                            tmp_path, 
+                            fp16=False, 
+                            language='en',
+                            initial_prompt="Jarvis, YouTube.",
+                            beam_size=1,
+                            temperature=0
+                        )
                         text = result['text'].lower().strip()
-                        if text:
+                        
+                        # Hallucination filter: ignore very common Whisper noise phrases
+                        hallucinations = ["thank you", "you", "subs", "watching", "always", "bye"]
+                        is_hallucination = any(h == text.strip('.') for h in hallucinations)
+                        
+                        if text and not is_hallucination:
                             print(f"[DEBUG] Heard: {text}")
-                        # Check for "Jarvis" and common mis-transcriptions
-                        wake_aliases = ['jarvis', 'charvace', 'charvis', 'jarve', 'service', 'garvis', 'javis', 'jarirus', 'jarries', 'dan', 'servers', 'server', 'thank you']
-                        if any(alias in text for alias in wake_aliases):
-                            print(f"[WAKE] Recognized: {text}")
-                            stream.stop_stream()
-                            stream.close()
-                            p.terminate()
-                            if os.path.exists(tmp_path):
-                                os.unlink(tmp_path)
-                            return True
+                            
+                            # Check for "Jarvis" and common mis-transcriptions
+                            wake_aliases = ['jarvis', 'charvace', 'charvis', 'jarve', 'service', 'garvis', 'javis', 'jarirus', 'jarries', 'dan', 'servers', 'server']
+                            if any(alias in text for alias in wake_aliases):
+                                print(f"[WAKE] Recognized: {text}")
+                                stream.stop_stream()
+                                stream.close()
+                                p.terminate()
+                                if os.path.exists(tmp_path):
+                                    os.unlink(tmp_path)
+                                return True
                     except Exception:
                         pass
                     finally:
                         if os.path.exists(tmp_path):
                             os.unlink(tmp_path)
 
-                # Slide window forward by 0.5 seconds
+                # Slide window forward
                 frames = frames[slide_chunks:]
 
         except KeyboardInterrupt:
@@ -250,22 +257,30 @@ def record_command(silence_threshold):
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
         tmp_path = tmp.name
 
-    # Normalize audio before saving
-    audio_data = np.frombuffer(b''.join(frames), dtype=np.int16).astype(np.float32)
-    max_vol = np.max(np.abs(audio_data))
-    if max_vol > 0:
-        audio_data = (audio_data / max_vol) * 32767.0
-    normalized_bytes = audio_data.astype(np.int16).tobytes()
-
     with wave.open(tmp_path, 'wb') as wf:
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(2)
         wf.setframerate(RATE)
-        wf.writeframes(normalized_bytes)
+        wf.writeframes(b''.join(frames))
 
     try:
-        result = whisper_model.transcribe(tmp_path, fp16=False, language='en')
-        command = result['text'].strip()
+        # High-speed transcription with context bias
+        vocab = "Jarvis, YouTube, Google, Chrome, Notepad, Calendar, VS Code, Search, Open, Close, Windows, Visual Studio Code."
+        result = whisper_model.transcribe(
+            tmp_path, 
+            fp16=False, 
+            language='en',
+            initial_prompt=vocab,
+            beam_size=1,        # Fast response
+            temperature=0
+        )
+        command = result['text'].strip().lower()
+        
+        # Human-like Command Cleanup
+        if "youve bill" in command or "open youve" in command: command = "open youtube"
+        if "ou so" in command or "vsc" in command or "o so" in command: command = "open vs code"
+        if "lord pad" in command or "lord book" in command: command = "open notepad"
+        
         print(f"[JARVIS] You said: {command}")
         return command
     except Exception as e:
