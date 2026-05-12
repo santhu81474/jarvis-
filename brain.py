@@ -5,7 +5,7 @@ import requests
 import sys
 
 # Constants
-MODEL_NAME = "llava"
+MODEL_NAME = "llama3.2-vision:11b"
 
 SYSTEM_PROMPT = """You are JARVIS, a diligent and helpful student assistant. You are here to follow the user's instructions perfectly.
 Always confirm what you are doing in the 'speak' field (e.g., "Yes, I am opening YouTube for you now").
