@@ -26,12 +26,18 @@ def check_dependencies():
     # List of possible ffmpeg paths
     ffmpeg_path = shutil.which('ffmpeg')
     
-    # Fallback for winget installation path if not in PATH yet
-    winget_ffmpeg = r"C:\Users\santh\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin\ffmpeg.exe"
-    if ffmpeg_path is None and os.path.exists(winget_ffmpeg):
-        ffmpeg_path = winget_ffmpeg
-        # Add to PATH for this session so whisper can find it
-        os.environ["PATH"] += os.pathsep + os.path.dirname(winget_ffmpeg)
+    if ffmpeg_path is None:
+        # Check some common non-PATH locations on Windows
+        possible_paths = [
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+            r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), r"Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin\ffmpeg.exe")
+        ]
+        for p in possible_paths:
+            if os.path.exists(p):
+                ffmpeg_path = p
+                os.environ["PATH"] += os.pathsep + os.path.dirname(p)
+                break
 
     if ffmpeg_path is None:
         print("\n[ERROR] ffmpeg is not installed or not in PATH.")
@@ -155,9 +161,9 @@ def listen_for_wake_word(silence_threshold):
                         )
                         text = result['text'].lower().strip()
                         
-                        # Hallucination filter: ignore very common Whisper noise phrases
-                        hallucinations = ["thank you", "you", "subs", "watching", "always", "bye"]
-                        is_hallucination = any(h == text.strip('.') for h in hallucinations)
+                        # Hallucination filter: ignore common Whisper noise phrases and very short snippets
+                        hallucinations = ["thank you", "you", "subs", "watching", "always", "bye", "please", "like", "share", "subscribe"]
+                        is_hallucination = any(h == text.strip('.') for h in hallucinations) or len(text) < 3
                         
                         if text and not is_hallucination:
                             print(f"[DEBUG] Heard: {text}")

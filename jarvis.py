@@ -12,36 +12,40 @@ init()
 
 BANNER = f"""
 {Fore.CYAN}
-   ____.  _____  __________ ____   ____._________________
-  |    | /  _  \ \______   \\   \ /   /|   \_   _____/   \\
-  |    |/  /_\  \ |       _/ \   Y   / |   ||    __)_ \   \\
-/\__|    /    |    \|    |   \  \     /  |   ||        \ \   \\
-\________\____|__  /|____|_  /   \___/   |___/_______  /  \___/
-                 \/        \/                        \/        
-                      V1.0 - LOCAL AI ASSISTANT
+   ██╗ █████╗ ██████╗ ██╗   ██╗██╗███████╗
+   ██║██╔══██╗██╔══██╗██║   ██║██║██╔════╝
+   ██║███████║██████╔╝██║   ██║██║███████╗
+   ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║
+   ██║██║  ██║██║  ██║ ╚████╔╝ ██║███████║
+   ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝
+{Fore.MAGENTA}          V1.0 - LOCAL AI ASSISTANT
 {Style.RESET_ALL}
 """
 
 def startup_checks():
     """Perform all necessary checks before starting."""
     print(BANNER)
-    print("[SYSTEM] Starting JARVIS initial diagnostics...")
+    print(f"{Fore.BLUE}[SYSTEM]{Style.RESET_ALL} Initializing JARVIS core protocols...")
     
     # Check FFmpeg
+    print(f"{Fore.BLUE}[SYSTEM]{Style.RESET_ALL} Verifying media dependencies (FFmpeg)...")
     listener.check_dependencies()
     
     # Check Ollama
+    print(f"{Fore.BLUE}[SYSTEM]{Style.RESET_ALL} Connecting to Neural Engine (Ollama)...")
     ok, msg = brain.check_ollama()
     if not ok:
-        print(f"{Fore.RED}[ERROR] {msg}{Style.RESET_ALL}")
-        tts.speak("Ollama is not ready. Please check the terminal for instructions.")
+        print(f"{Fore.RED}[CRITICAL ERROR] {msg}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}[ADVICE] Ensure Ollama is running and '{brain.MODEL_NAME}' is pulled.{Style.RESET_ALL}")
+        tts.speak("Neural engine offline. Please check the terminal for instructions.")
         sys.exit(1)
     
     # Load Whisper
+    print(f"{Fore.BLUE}[SYSTEM]{Style.RESET_ALL} Loading Speech-to-Text processor...")
     listener.load_whisper_model()
     
-    print(f"{Fore.GREEN}[SYSTEM] All systems nominal. JARVIS is online.{Style.RESET_ALL}")
-    tts.speak("JARVIS online. How can I assist you?")
+    print(f"\n{Fore.GREEN}[SUCCESS] All systems operational. JARVIS is online.{Style.RESET_ALL}")
+    tts.speak("JARVIS online. How can I assist you today?")
 
 def main():
     try:
