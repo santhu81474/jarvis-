@@ -54,21 +54,24 @@ import base64
 def think(command, image_bytes):
     """Send command and screenshot to Ollama and parse response."""
     try:
-        img_base64 = base64.b64encode(image_bytes).decode('utf-8')
-        
-        print(f"[DEBUG] Requesting thinking from {MODEL_NAME}...")
-        response = ollama.generate(
-            model=MODEL_NAME,
-            system=SYSTEM_PROMPT,
-            prompt=command,
-            images=[img_base64],
-            format='json',
-            stream=False,
-            options={
+        kwargs = {
+            "model": MODEL_NAME,
+            "system": SYSTEM_PROMPT,
+            "prompt": command,
+            "format": 'json',
+            "stream": False,
+            "options": {
                 "num_ctx": 2048,
                 "temperature": 0.1
             }
-        )
+        }
+        
+        if image_bytes:
+            img_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            kwargs["images"] = [img_base64]
+            
+        print(f"[DEBUG] Requesting thinking from {MODEL_NAME}...")
+        response = ollama.generate(**kwargs)
         
         response_text = response.get('response', '')
         print(f"[DEBUG] Brain Raw Response: {response_text}")
