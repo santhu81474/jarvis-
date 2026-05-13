@@ -11,6 +11,10 @@ pyautogui.PAUSE = 0.3      # Small pause between actions
 
 def open_app(app_name):
     """Open an application cross-platform with smart alias matching."""
+    if not app_name:
+        print("[ERROR] No app_name provided to open.")
+        return
+        
     # Smart mapping for common voice mis-transcriptions
     aliases = {
         "load pad": "notepad",
@@ -118,27 +122,34 @@ def execute_actions(actions):
             print(f"[EXECUTOR] Action: {a_type} at ({x}, {y})" if x is not None else f"[EXECUTOR] Action: {a_type}")
 
             if a_type == "OPEN":
-                open_app(app)
+                if app:
+                    open_app(app)
             elif a_type == "CLICK":
-                pyautogui.click(x, y)
+                if x is not None and y is not None:
+                    pyautogui.click(x, y)
             elif a_type == "DOUBLE_CLICK":
-                pyautogui.doubleClick(x, y)
+                if x is not None and y is not None:
+                    pyautogui.doubleClick(x, y)
             elif a_type == "RIGHT_CLICK":
-                pyautogui.rightClick(x, y)
+                if x is not None and y is not None:
+                    pyautogui.rightClick(x, y)
             elif a_type == "SCROLL":
                 pyautogui.scroll(amount if amount else -300)
             elif a_type == "TYPE":
-                pyperclip.copy(text)
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.2)
-                # Auto-enter for searches
-                if "search" in str(action).lower():
-                    pyautogui.press('enter')
+                if text:
+                    pyperclip.copy(text)
+                    pyautogui.hotkey('ctrl', 'v')
+                    time.sleep(0.2)
+                    # Auto-enter for searches
+                    if "search" in str(action).lower():
+                        pyautogui.press('enter')
             elif a_type == "KEY":
-                if key and '+' in key:
-                    pyautogui.hotkey(*key.split('+'))
-                else:
-                    pyautogui.press(key if key else text)
+                k = key if key else text
+                if k:
+                    if '+' in k:
+                        pyautogui.hotkey(*k.split('+'))
+                    else:
+                        pyautogui.press(k)
             elif a_type == "WAIT":
                 time.sleep(seconds)
             elif a_type == "SCREENSHOT":
